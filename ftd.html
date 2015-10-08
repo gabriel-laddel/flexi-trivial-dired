@@ -1,0 +1,906 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html> 
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+  <title>FTD - The Flexi-Trivial Dired</title>
+  <style type="text/css">
+  pre { padding:5px; background-color:#e0e0e0 }
+  a { text-decoration: none; }
+  a.noborder { border:0px }
+  a.noborder:hover { border:0px }
+  a.none { border:1px solid white; }
+  a.none:hover { border:1px solid white; }
+  a { border:1px solid white; }
+  a:hover   { border: 1px solid black; } 
+  </style>
+</head>
+
+<body bgcolor=white>
+
+<h2>FTD - The Flexi-Trivial Dired</h2>
+
+<blockquote>
+
+<h3><a name=abstract >Abstract</a></h3>
+
+FTD is a Dired-style file manager in [Mc]Clim. It was conceived as
+a basis for experimenting with various Clim concepts, including
+integration with other Clim applications like Climacs. One day it
+will fulfill this function. At the moment it just does some of
+what the Emacs Dired does, using methods very similar to those of
+Emacs Dired.
+
+<p>
+
+<font color=red>
+WARNING! WARNING! DANGER WILL ROBINSON! This program deliberately
+alters your filesystem and runs shell programs. It has been
+developed on a single computer (iBook G4) under a single 
+OS (OSX 10.4) using a single style of
+operation (mine). Who knows what it might do on your computer, OS
+and style. YOU HAVE BEEN WARNED.
+</font>
+<p>
+FTD comes with an <a
+href="http://www.opensource.org/licenses/mit-license.php">MIT-style
+license</a> so you can basically do with it whatever you want.
+
+<p>
+Download shortcut: <a href="http://common-lisp.net/~dmurray/ftd-0.0.3.tar.gz">
+http://common-lisp.net/~dmurray/ftd-0.0.3.tar.gz</a>
+
+</blockquote>
+
+<h3><a  name="contents">Contents</a></h3>
+<ol>
+  <li><a href="#download">Download and installation</a>
+  <li><a href="#implementations">Supported Lisp implementations</a>
+  <li><a href="#introduction">Introduction</a>
+  <li><a href="#dictionary">The FTD dictionary</a>
+
+  <ol type="A">
+    <li><a href="#tabs">Tabs</a>
+      <ul>
+	<li><a href="#dired">Dired</a>
+	<li><a href="#system">System</a>
+	<li><a href="#find-name">Find Name</a>
+	<li><a href="#find-grep">Find Grep</a>
+	<li><a href="#find-dired">Find Dired</a>
+	<li><a href="#close-tab">Close Tab</a>
+	<li><a href="#quit">Quit</a>
+      </ul>
+    <li><a href="#movement">Movement</a>
+      <ul>
+	<li><a href="#next-line">Next Line</a>
+	<li><a href="#previous-line">Previous Line</a>
+	<li><a href="#page-down">Page Down</a>
+	<li><a href="#page-up">Page Up</a>
+	<li><a href="#first-line">First Line</a>
+	<li><a href="#last-line">Last Line</a>
+      </ul>
+    <li><a href="#deletion">Deletion</a>
+      <ul>
+	<li><a href="#delete-file">Delete File</a>
+	<li><a href="#keyboard-delete-file"><code>keyboard-delete-file</code></a>
+	<li><a href="#undelete-file">Undelete File</a>
+	<li><a href="#keyboard-undelete-file"><code>keyboard-undelete-file</code></a>
+	<li><a href="#backward-undelete-file">Backward Undelete File</a>
+	<li><a href="#flag-backup-files">Flag Backup Files</a>
+	<li><a href="#flag-auto-save-files">Flag Auto Save Files</a>
+	<li><a href="#regexp-flag-files">Regexp Flag Files</a>
+	<li><a href="#flag-excess-backups">Flag Excess Backups</a>
+	<li><a href="#expunge">Expunge</a>
+      </ul>
+    <li><a href="#marking">Marking</a>
+      <ul>
+	<li><a href="#mark-file">Mark File</a>
+	<li><a href="#keyboard-mark-file"><code>keyboard-mark-file</code></a>
+	<li><a href="#mark-all-files">Mark All Files</a>
+	<li><a href="#regexp-mark-files">Regexp Mark Files</a>
+	<li><a href="#eval-mark-files">Eval Mark Files</a>
+	<li><a href="#grep-mark-files">Grep Mark Files</a>
+	<li><a href="#mark-extension">Mark Extension</a>
+	<li><a href="#mark-executables">Mark Executables</a>
+	<li><a href="#mark-symlinks">Mark Symlinks</a>
+	<li><a href="#mark-directories">Mark Directories</a>
+	<li><a href="#next-marked-file">Next Marked File</a>
+	<li><a href="#previous-marked-file">Previous Marked File</a>
+	<li><a href="#toggle-marks">Toggle Marks</a>
+	<li><a href="#unmark-all-marks">Unmark All Marks</a>
+	<li><a href="#unmark-all-files">Unmark All Files</a>
+	<li><a href="#change-marks">Change Marks</a>
+      </ul>
+    <li><a href="#actions">Actions</a>
+      <ul>
+	<li><a href="#create-directory">Create Directory</a>
+	<li><a href="#visit-file">Visit File</a>
+	<li><a href="#revert-tab">Revert Tab</a>
+	<li><a href="#new-tab">New Tab</a>
+	<li><a href="#add-files">Add Files</a>
+	<li><a href="#chmod">Chmod</a>
+	<li><a href="#cmgrp">Chgrp</a>
+	<li><a href="#chown">Chown</a>
+	<li><a href="#touch">Touch</a>
+	<li><a href="#delete">Delete</a>
+	<li><a href="#copy">Copy</a>
+	<li><a href="#rename">Rename</a>
+	<li><a href="#hardlink">Hardlink</a>
+	<li><a href="#symlink">Symlink</a>
+	<li><a href="#upcase">Upcase</a>
+	<li><a href="#downcase">Downcase</a>
+	<li><a href="#capitalize">Capitalize</a>
+	<li><a href="#regexp-rename">Regexp Rename</a>
+	<li><a href="#regexp-hardlink">Regexp Hardlink</a>
+	<li><a href="#regexp-symlink">Regexp Symlink</a>
+	<li><a href="#regexp-copy">Regexp Copy</a>
+	<li><a href="#redisplay">Redisplay</a>
+	<li><a href="#shell-command">Shell Command</a>
+      </ul>
+    <li><a href="#variables">Variables</a>
+      <ul>
+	<li><a href="#set-variable">Set Variable</a>
+	<li><a href="#flag-character"><code>*flag-character*</code></a>
+	<li><a href="#mark-character"><code>*mark-character*</code></a>
+	<li><a href="#kept-new-versions"><code>*kept-new-versions*</code></a>
+	<li><a href="#kept-old-versions"><code>*kept-old-versions*</code></a>
+	<li><a href="#chown-program"><code>*chown-program*</code></a>
+	<li><a href="#chgrp-program"><code>*chgrp-program*</code></a>
+	<li><a href="#chmod-program"><code>*chmod-program*</code></a>
+	<li><a href="#touch-program"><code>*touch-program*</code></a>
+      </ul>
+  </ol>
+  <li><a href="#todo">TODO</a>
+  <li><a href="#contact">Contact</a>
+</ol>
+
+<a  name="download">Download and installation</a></h3>
+
+FTD together with this documentation can be downloaded from 
+<a href="http://common-lisp.net/~dmurray/ftd-0.0.3.tar.gz">
+http://common-lisp.net/~dmurray/ftd-0.0.3.tar.gz</a>.
+
+<p>
+The current version is 0.0.3.
+
+<p>
+FTD relies on <a href="http://common-lisp.net/project/mcclim/">mcclim</a>, 
+<a href="http://www.weitz.de/cl-fad/">cl-fad</a>, 
+<a href="http://www.weitz.de/cl-ppcre/">cl-ppcre</a>, 
+<a href="http://www.accela.net/cffi-grovel/releases/">cffi-unix</a>, 
+<a href="http://common-lisp.net/project/flexichain/">flexichain</a> 
+and <a href="http://www.cliki.net/esa">ESA</a>.
+
+<p>
+FTD comes with a simple system definition for
+<a href="http://www.cliki.net/asdf">asdf</a> so you can either adapt it
+to your needs or just unpack the archive and from within the FTD
+directory start your Lisp image and evaluate the form
+
+<code>(asdf:oos&nbsp;'asdf:load-op&nbsp;:ftd)</code> 
+which should compile and load the whole system.
+Installation via 
+<a href="http://www.cliki.net/asdf-install">asdf-install</a> 
+may one day be possible.
+
+<h3><a  name="implementations">Implementation status</a></h3>
+
+<p>
+FTD is reported to work as follows:
+<ul>
+<li><a href="http://armedbear.org/abcl.html">Armed Bear Common Lisp</a> NO
+<li><a href="http://www.cons.org/cmucl/">CMUCL</a> NO
+<li><a href="http://www.cormanlisp.com/">Corman Common Lisp</a> NO
+<li><a href="http://ecls.sf.net/">ECL</a> NO
+<li><a href="http://www.franz.com/products/allegrocl/">Franz AllegroCL</a> NO
+<li><a href="http://clisp.cons.org/">GNU CLISP</a> NO
+<li><a href="http://www.lispworks.com/">LispWorks</a> NO
+<li><a href="http://openmcl.clozure.com/">OpenMCL</a> NO
+<li><a href="http://sbcl.sourceforge.net/">Steel Bank Common Lisp</a> Maybe, on OSX
+</ul>
+
+I'll gladly accept patches to make FTD work on other platforms.
+
+<h3><a  name="introduction">Introduction</a></h3>
+
+FTD allows you to perform operations on files.
+Files are grouped into tabs. A tab might represent a directory,
+or all the files matching some shell wildcard, or all the files
+found with some incantation of <code>find</code>, or all the source files
+in an ASDF system.
+<p>
+Within a tab the files are displayed one per line, with the output as from
+<code>ls -la</code>. A cursor is displayed next
+to the current entry in the tab.
+<p>
+You can 'flag' files (a <code>D</code> shows up at the beginning of
+the line) and then later 'Expunge', or delete them. Or you can 'mark'
+files (a <code>*</code> is used), and then act on those marked files
+in various ways. You can also use other marks than <code>D</code> and
+<code>*</code>.
+<p>
+Visiting an entry (with <code>f</code>) will try to run <code>ed</code> on it,
+unless it is a directory, in which case you'll be taken to a tab containing
+the files in that directory.
+<p>
+Sometimes (often?) the information in a tab will get out of sync with
+what is on disk. You can use <code>l</code> to resync only a few files,
+or <code>g</code> to recreate the whole tab.
+<p>
+Oh, yeah. You start FTD with <code>(ftd:ftd)</code>.
+
+<h3><a  name="dictionary">The FTD dictionary</a></h3>
+
+<h4><a name="tabs">Tabs</a></h4>
+
+<p><br>[Command]
+<br><a  name="dired"><b>Dired</b> <i> path </i></a>
+<br><code>C-x d</code>
+<blockquote>
+Creates a new tab for the directory named by <i>path</i> (which may be wild).
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="system"><b>System</b> <i> system-name </i></a>
+<br><code>C-x s</code>
+<blockquote>
+Creates a new tab for the asdf system named by <i>system-name</i>. The system
+must be loaded to be found.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="find-name"><b>Find Name</b> <i> directory name </i></a>
+<br><code>C-x n</code>
+<blockquote>
+Creates a new tab for the files found by running <code>find</code> in
+<i>directory</i> with the <code>-name</code> argument <i>name</i>.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="find-grep"><b>Find Grep</b> <i> directory grep-regex </i></a>
+<br><code>C-x g</code>
+<blockquote>
+Creates a new tab for the files found by running <code>grep</code> with the regex
+<i>grep-regex</i> on files found by <code>find</code> from <i>directory</i>.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="find-dired"><b>Find Dired</b> <i> directory find-arguments </i></a>
+<br><code>C-x f</code>
+<blockquote>
+Creates a new tab for the files found by running <code>find</code> with the
+arguments <i>find-arguments</i> from <i>directory</i>.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="close tab"><b>Close Tab</b> </a>
+<br><code>q</code>
+<blockquote>
+Close the current tab. To close the last tab, you must Quit.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="quit"><b>Quit</b></a>
+<br><code>C-x C-c</code>
+<blockquote>
+Quit FTD.
+
+</blockquote>
+
+<h4><a name="movement">Movement</a></h4>
+
+<p><br>[Command]
+<br><a  name="next-line"><b>Next Line</b> <i> count </i></a>
+<br><code>n, C-n, SPACE, DOWN</code>
+<blockquote>
+Moves the cursor down <i>count</i> (default 1) lines.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="previous-line"><b>Previous Line</b> <i> count </i></a>
+<br><code>p, C-p, UP</code>
+<blockquote>
+Moves the cursor up <i>count</i> (default 1) lines.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="page-down"><b>Page Down</b> </a>
+<br><code>C-v</code>
+<blockquote>
+Moves the cursor to the next 'page'.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="page-up"><b>Page Up</b> </a>
+<br><code>M-v</code>
+<blockquote>
+Moves the cursor to the previous 'page'.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="first-line"><b>First Line</b> </a>
+<br><code>M-&lt</code>
+<blockquote>
+Moves the cursor to the first line.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="last-line"><b>Last Line</b> </a>
+<br><code>M-&gt</code>
+<blockquote>
+Moves the cursor to the last line.
+
+</blockquote>
+
+<h4><a name="Deletion">Deletion</a></h4>
+
+<p><br>[Command]
+<br><a  name="delete-file"><b>Delete File</b> <i> entries </i></a>
+<br><code></code>
+<blockquote>
+Mark <i>entries</i> (typed in or selected with the mouse - use a comma
+to separate entries) for deletion.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="keyboard-delete-file"><b>keyboard-delete-file</b> <i> count </i></a>
+<br><code>d</code>
+<blockquote>
+Mark the next <i>count</i> (default 1) files for deletion.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="undelete-file"><b>Undelete File</b> <i> entries </i></a>
+<br><code></code>
+<blockquote>
+Remove marks from <i>entries</i> (typed in or selected with the mouse - use a comma
+to separate entries).
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="keyboard-undelete-file"><b>keyboard-undelete-file</b> <i> count </i></a>
+<br><code>u, * u</code>
+<blockquote>
+Remove marks from the next <i>count</i> (default 1) files.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="backward-undelete-file"><b>Backward Undelete File</b> <i> count </i></a>
+<br><code>BACKSPACE, * BACKSPACE</code>
+<blockquote>
+Remove marks from the previous <i>count</i> (default 1) files.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="flag-backup-files"><b>Flag Backup Files</b></a>
+<br><code>~</code>
+<blockquote>
+Mark backup files (those with names ending in <code>~</code>) for deletion.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="flag-auto-save-files"><b>Flag Auto Save Files</b></a>
+<br><code>#</code>
+<blockquote>
+Mark auto save files (those whose names begin and end with <code>#</code>)
+for deletion.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="regexp-flag-files"><b>Regexp Flag Files</b><i> regexp </i></a>
+<br><code>% d</code>
+<blockquote>
+Mark files whose names match <i>regexp</i> for deletion.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="flag-excess-backups"><b>Flag Excess Backups</b></a>
+<br><code>.</code>
+<blockquote>
+Mark numbered backups other than the <code>*kept-old-versions*</code>
+oldest and <code>*kept-new-versions*</code> most recent for deletion.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="expunge"><b>Expunge</b></a>
+<br><code>x</code>
+<blockquote>
+Delete from disk the files marked for deletion.
+
+</blockquote>
+
+<h4><a name="marking">Marking</a></h4>
+
+<p><br>[Command]
+<br><a  name="mark-file"><b>Mark File</b> <i> entries </i></a>
+<br><code></code>
+<blockquote>
+Mark the <i>entries</i> (typed in or selected with the mouse - use a comma
+to separate entries).
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="keyboard-mark-file"><b>keyboard-mark-file</b> <i> count </i></a>
+<br><code>m, * m</code>
+<blockquote>
+Mark the next <i>count</i> (default 1) files.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="mark-all-files"><b>Mark All Files</b></a>
+<br><code>* s</code>
+<blockquote>
+Mark all files in the tab.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="regexp-mark-files"><b>Regexp Mark Files</b> <i> regexp </i></a>
+<br><code>% m, * %</code>
+<blockquote>
+Mark files whose names match <i>regexp</i>.
+
+</blockquote>
+<p><br>[Command]
+<br><a  name="eval-mark-files"><b>Eval Mark Files</b> <i> expression </i></a>
+<br><code>* (</code>
+<blockquote>
+Mark files for which (the lisp) <i>expression</i> returns true. 
+<i>expression</i> will be evaluated for each file, with the special
+variable <code>*entry*</code> bound to the <code>ftd-entry</code>
+instance for that file.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="mark-regexp-containing-files"><b>Mark Regexp Containing Files</b> <i> regexp </i></a>
+<br><code>% g</code>
+<blockquote>
+Mark files where <code>grep</code> can find <i>regexp</i>.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="mark-extension"><b>Mark Extension</b> <i> extension </i></a>
+<br><code>* .</code>
+<blockquote>
+Mark files whose name has the extension 
+(the part of the name following the final <code>.</code>)
+<i>extension</i>.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="mark-executables"><b>Mark Executables</b></a>
+<br><code>* *</code>
+<blockquote>
+Mark executable files.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="mark-symlinks"><b>Mark Symlinks</b></a>
+<br><code>* @</code>
+<blockquote>
+Mark files that are symbolic links.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="mark-directories"><b>Mark Directories</b></a>
+<br><code>* /</code>
+<blockquote>
+Mark directories.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="next-marked-file"><b>Next Marked File</b></a>
+<br><code>* C-n, M-}</code>
+<blockquote>
+Move the cursor to the next marked file.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="previous-marked-file"><b>Previous Marked File</b></a>
+<br><code>* C-p, M-{</code>
+<blockquote>
+Move the cursor to the previous marked file.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="toggle-marks"><b>Toggle Marks</b></a>
+<br><code>* t</code>
+<blockquote>
+Mark all unmarked files, and remove <code>*</code> marks from files that have them.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="unmark-all-marks"><b>Unmark All Marks</b></a>
+<br><code>* !, U</code>
+<blockquote>
+Remove all marks from all files.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="unmark-all-files"><b>Unmark All Files</b><i> query mark</i></a>
+<br><code>* ?</code>
+<blockquote>
+Remove all <i>mark</i> marks from files, asking for confirmation if <i>query</i>
+is true (ie. a prefix argument is supplied).
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="change-marks"><b>Change Marks</b><i> old-mark new-mark</i></a>
+<br><code>* c</code>
+<blockquote>
+Replaces all <i>old-mark</i>s with <i>new-mark</i>s.
+
+</blockquote>
+
+<h4><a name="actions">Actions</a></h4>
+
+<p><br>[Command]
+<br><a  name="create-directory"><b>Create Directory</b><i> name </i></a>
+<br><code>+</code>
+<blockquote>
+Create the directory <i>name</i>.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="visit-file"><b>Visit File</b></a>
+<br><code>f</code>
+<blockquote>
+If the entry at the cursor is a directory, switches to the corresponding tab
+or creates a new tab for that directory. If it is a file, calls <code>ed</code>
+on it.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="revert-tab"><b>Revert Tab</b></a>
+<br><code>g</code>
+<blockquote>
+Reread information about all entries in the tab from disk.
+
+</blockquote>
+
+<p>
+The following commands all work on the <i>relevant entries</i>, being:
+<ul>
+<li> the marked entries; or
+<li> if a prefix command <i>count</i> is given, the next <i>count</i> entries; or
+<li> the current entry (ie. the entry next to the cursor).
+</ul>
+
+<p><br>[Command]
+<br><a  name="new-tab"><b>New Tab</b><i> count name</i></a>
+<br><code>C-x t</code>
+<blockquote>
+Create a new file list tab named <i>name</i> with the relevant entries.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="add-files"><b>Add Files</b><i> count tab </i></a>
+<br><code>C-x a</code>
+<blockquote>
+Add the relevant entries to the file list tab <i>tab</i>.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="chmod"><b>Chmod</b><i> count mode</i></a>
+<br><code>M</code>
+<blockquote>
+Change the mode of the relevant entries to <i>mode</i>
+(anything that <code>chmod</code> accepts).
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="chgrp"><b>Chgrp</b><i> count group</i></a>
+<br><code>G</code>
+<blockquote>
+Change the group of the relevant entries to <i>group</i>
+(anything that <code>chgrp</code> accepts).
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="chown"><b>Chown</b><i> count owner</i></a>
+<br><code>O</code>
+<blockquote>
+Change the owner of the relevant entries to <i>owner</i>
+(anything that <code>chown</code> accepts).
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="touch"><b>Touch</b><i> count time</i></a>
+<br><code>T</code>
+<blockquote>
+Change the modifcation and access times of the relevant entries to <i>time</i>
+(anything time format that <code>touch</code> accepts).
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="delete"><b>Delete</b><i> count </i></a>
+<br><code>D</code>
+<blockquote>
+Delete the relevant entries.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="copy"><b>Copy</b><i> count destination </i></a>
+<br><code>C</code>
+<blockquote>
+Copy the relevant entries to <i>destination</i>.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="rename"><b>Rename</b><i> count destination </i></a>
+<br><code>R</code>
+<blockquote>
+Rename/move the relevant entries to <i>destination</i>.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="hardlink"><b>Hardlink</b><i> count destination </i></a>
+<br><code>H</code>
+<blockquote>
+Create hard links to the relevant entries in <i>destination</i>.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="symlink"><b>Symlink</b><i> count destination </i></a>
+<br><code>S</code>
+<blockquote>
+Create symbolic links to the relevant entries in <i>destination</i>.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="upcase"><b>Upcase</b><i> count </i></a>
+<br><code>% u</code>
+<blockquote>
+Change the name of each relevant file to its uppercase counterpart.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="downcase"><b>Downcase</b><i> count </i></a>
+<br><code>% l</code>
+<blockquote>
+Change the name of each relevant file to its lowercase counterpart.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="capitalize"><b>Capitalize</b><i> count </i></a>
+<br><code>% k</code>
+<blockquote>
+Change the name of each relevant file to its capitalized counterpart.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="regexp-rename"><b>Regexp Rename</b><i> count from to </i></a>
+<br><code>% R</code>
+<blockquote>
+Change the name of each relevant file matched by the regexp <i>from</i> to
+regexp substitution <i>to</i>.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="regexp-hardlink"><b>Regexp Hardlink</b><i> count from to </i></a>
+<br><code>% H</code>
+<blockquote>
+Create a hard link to each relevant file matched by the regexp <i>from</i>
+with the name given by regexp substitution <i>to</i>.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="regexp-symlink"><b>Regexp Symlink</b><i> count from to </i></a>
+<br><code>% S</code>
+<blockquote>
+Create a symbolic link to each relevant file matched by the regexp <i>from</i>
+with the name given by regexp substitution <i>to</i>.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="regexp-copy"><b>Regexp Copy</b><i> count from to </i></a>
+<br><code>% C</code>
+<blockquote>
+Copy each relevant file matched by the regexp <i>from</i>
+to the name given by regexp substitution <i>to</i>.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="redisplay"><b>Redisplay</b><i> count </i></a>
+<br><code>l</code>
+<blockquote>
+Reread the information about the relevant entries from disk.
+
+</blockquote>
+
+<p><br>[Command]
+<br><a  name="shell-command"><b>Shell Command</b><i> count command-line</i></a>
+<br><code>!, X</code>
+<blockquote>
+Have the shell execute <i>command-line</i>:
+<ul>
+<li>if <i>command-line</i> contains a <code>*</code>, once, with the names of all the
+relevant entries subsituted for the <code>*</code>;
+<li>if <i>command-line</i> contains one or more <code>?</code>s, once for each relevant
+entry, with the name of that entry substituted for the <code>?<code>s; or
+<li>once for each relevant entry, with the name of that entry appended to
+<i>command-line</i>.
+</ul>
+
+</blockquote>
+
+<h4><a name="variables">Variables</a></h4>
+
+<p><br>[Command]
+<br><a  name="set-variable"><b>Set Variable</b> <i> variable value </i></a>
+<br><code></code>
+<blockquote>
+Sets <i>variable</i> to <i>value</i>. Variables are declared with
+<code>define-variable</code>, which is like <code>defvar</code> but
+takes an optional fourth argument
+<i>p-type</i>, being the presentation type to use when prompting for
+a new value. The name is user-fied, so that <code>*foo-variable*</code>
+becomes <code>Foo Variable</code> for <i>variable</i>.
+
+</blockquote>
+
+<p><br>[Special variable]
+<br><a  name="flag-character"><code><b>*flag-character*</b></code><i> #\D </i></a>
+<blockquote>
+The character to be used for marking entries for deletion.
+
+</blockquote>
+
+<p><br>[Special variable]
+<br><a  name="mark-character"><code><b>*mark-character*</b></code><i> #\* </i></a>
+<blockquote>
+The character to be used for marking entries.
+
+</blockquote>
+
+<p><br>[Special variable]
+<br><a  name="kept-new-versions"><code><b>*kept-new-versions*</b></code><i> 2 </i></a>
+<blockquote>
+Number of most recent numbered backups to keep.
+
+</blockquote>
+
+<p><br>[Special variable]
+<br><a  name="kept-old-versions"><code><b>*kept-old-versions*</b></code><i> 2 </i></a>
+<blockquote>
+Number of oldest numbered backups to keep.
+
+</blockquote>
+
+<p><br>[Special variable]
+<br><a  name="chown-program"><code><b>*chown-program*</b></code><i> "chown" </i></a>
+<blockquote>
+The program to be used as 'chown'.
+
+</blockquote>
+
+<p><br>[Special variable]
+<br><a  name="chgrp-program"><code><b>*chgrp-program*</b></code><i> "chgrp" </i></a>
+<blockquote>
+The program to be used as 'chgrp'.
+
+</blockquote>
+
+<p><br>[Special variable]
+<br><a  name="chmod-program"><code><b>*chmod-program*</b></code><i> "chmod" </i></a>
+<blockquote>
+The program to be used as 'chmod'.
+
+</blockquote>
+
+<p><br>[Special variable]
+<br><a  name="touch-program"><code><b>*touch-program*</b></code><i> "touch" </i></a>
+<blockquote>
+The program to be used as 'touch'.
+
+</blockquote>
+
+<p><br>[Special variable]
+<br><a  name="cursor-ink"><code><b>*cursor-ink*</b></code><i> +red+ </i></a>
+<blockquote>
+The ink to be used for the cursor.
+
+</blockquote>
+
+<p><br>[Special variable]
+<br><a  name="flag-ink"><code><b>*flag-ink*</b></code><i> +dark-green+ </i></a>
+<blockquote>
+The ink to be used for flags.
+
+</blockquote>
+
+<p><br>[Special variable]
+<br><a  name="deleted-files-ink"><code><b>*deleted-files-ink*</b></code><i> +dark-red+ </i></a>
+<blockquote>
+The ink to be used for the names of files flagged for deletion.
+
+</blockquote>
+
+<p><br>[Special variable]
+<br><a  name="marked-files-ink"><code><b>*marked-files-ink*</b></code><i> +dark-blue+ </i></a>
+<blockquote>
+The ink to be used for the names of marked files.
+
+</blockquote>
+
+<h3><a name="todo">TODO</a></h3>
+
+<ul>
+<li> OAOOise much of the shell command code
+<li> Abstract/parameterise the shell stuff
+<li> Write tests
+<li> Error logging
+<li> Bullet proof 'Set Variable' facility
+<li> Better ACCEPT presentation method for characters
+<li> Better ACCEPT presentation method for non-named colo[u]rs
+<li> Init file
+<li> Drag-and-drop files to directories
+<li> Drag-and-drop files to tabs
+<li> Fix query-loop
+<li> Integerate with clim-desktop etc.
+<li> Long queries in background
+<li> Support for remote filesystems
+</ul>
+
+<p>
+
+<h3><a name="contact">Contact</a></h3>
+
+Comments, queries and suggestions to: 
+<code>splittist</code> <i>at</i> <code>yahoo</code> <i>dot</i> <code>com</code>
+
+</body>
+</html>
