@@ -1,4 +1,4 @@
-;; -*- Mode: Lisp; Syntax: Common-Lisp; Package: FTD; -*-
+;;; -*- Mode: Lisp; Syntax: Common-Lisp; Package: FTD; -*-
 ;;; ---------------------------------------------------------------------------
 ;;;     Title: Ftd, the Flexi-Trivial Dired
 ;;;   Created: 2005-12-04
@@ -6,7 +6,6 @@
 ;;;   License: MIT style (see below)
 ;;; ---------------------------------------------------------------------------
 ;;;  (c) copyright 2005, 2006 by John Q. Splittist
-
 ;;; 
 ;;;  Permission is hereby granted, free of charge, to any person obtaining
 ;;;  a copy of this software and associated documentation files (the
@@ -26,7 +25,6 @@
 ;;;  CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 ;;;  TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 ;;;  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-;;; 
 
 (in-package :ftd)
 
@@ -54,14 +52,17 @@
   ((directory :initarg :directory :initform nil :accessor pane-directory)
    (cursor-line :initarg :cursor-line :initform 0 :accessor pane-cursor-line))
   (:default-initargs
-      :directory (make-directory (user-homedir-pathname))
-    :width 700 :height 800
-    :display-function 'display-my-pane
-    :display-time nil
-    :incremental-redisplay t
-    :end-of-line-action :allow
-    :end-of-page-action :allow
-    :command-table 'global-ftd-table))
+   :directory (make-directory #P"/tmp/")
+   :width 700 :height 800
+   :display-function 'display-my-pane
+   :display-time nil
+   :incremental-redisplay t
+   :end-of-line-action :allow
+   :end-of-page-action :allow
+   :command-table 'global-ftd-table))
+
+(define-command-table global-ftd-table
+    :inherit-from (global-esa-table keyboard-macro-table help-table))
 
 (defun make-window (directory)
   (with-look-and-feel-realization
@@ -80,44 +81,53 @@
 (defclass tab-layout-mixin ()
      ((pane/window :accessor pane/window :initform nil)))
 
+(defvar start-directory #P"/tmp/")
+
 (define-application-frame ftd (standard-application-frame
-			       tab-layout-mixin
-			       esa-frame-mixin)
-  ()
+                               tab-layout-mixin
+                               esa-frame-mixin)
+  ()  
+  (:command-table (ftd :inherit-from (global-ftd-table
+				      clim-listener::application-commands)
+		       :menu (("Dired" :menu global-ftd-table)
+                              ("Help"  :menu help-table))))
   (:panes
    (window (let* ((my-pane (make-pane 'ftd-pane
-				     :width 700 :height 800
-				     :display-function 'display-my-pane
-				     :display-time nil
-				     :incremental-redisplay t
-				     :command-table 'global-ftd-table))
-		  (my-info-pane (make-pane 'ftd-info-pane
-					   :master-pane my-pane 
-					   :width 700))
-		  (my-window
-		   (vertically ()
-		     (scrolling ()
-		       my-pane)
-		     my-info-pane)))
-	     (setf (windows *application-frame*) (list my-pane))
-	     (setf (pane/window *application-frame*) (list (cons my-pane my-window)))
-	     my-window))
+                                      :width 700 :height 800
+                                      :display-function 'display-my-pane
+                                      :display-time nil
+                                      :incremental-redisplay t
+                                      :command-table 'global-ftd-table
+                                      :directory (make-directory start-directory)))
+                  (my-info-pane (make-pane 'ftd-info-pane
+                                           :master-pane my-pane 
+                                           :width 700))
+                  (my-window
+		    (vertically ()
+		      (scrolling ()
+			my-pane)
+		      my-info-pane)))
+             (setf (windows *application-frame*) (list my-pane))
+             (setf (pane/window *application-frame*) (list (cons my-pane my-window)))
+             my-window))
    (minibuffer (make-pane 'ftd-minibuffer-pane :width 700)))
-;;   (:pointer-documentation t)
+  (:menu-bar t)
   (:layouts
    (default
-       (vertically ()
-	 (with-tab-layout ('pane :name 'tab-layout-pane)
-	   ((last1 (pathname-directory (user-homedir-pathname))) window))
-	 (20 minibuffer))))
+    (vertically ()
+      (with-tab-layout ('pane :name 'tab-layout-pane)
+        ((last1 (pathname-directory ;; (user-homedir-pathname)
+                 start-directory
+                 )) window))
+      (20 minibuffer))))
   (:top-level (esa-top-level)))
 
 (defun current-pane ()
   (car (rassoc
-	(tab-layout::tab-pane-pane
-	 (enabled-pane
-	  (find-pane-named *application-frame* 'tab-layout-pane)))
-	(pane/window *application-frame*))))
+	(clim-tab-layout::tab-page-pane
+	 (clim-tab-layout::tab-layout-enabled-page
+	  (find-pane-named ftd-frame 'tab-layout-pane)))
+        (pane/window ftd-frame))))
 
 (defmethod find-applicable-command-table ((frame tab-layout-mixin))
   (declare (ignore frame))
@@ -132,42 +142,45 @@
 	maximizing (slot-value entry 'link-count) into max-link-count
 	maximizing (slot-value entry 'size) into max-size
 	finally
-     (loop for count below (flexichain:nb-elements entries)
-	   for entry = (flexichain:element* entries count)
-	   with link-count-width
-	     = (max 4 (ftd-directory::integer-string-length max-link-count))
-	   with size-width = (ftd-directory::integer-string-length max-size)
-	   do
-	(with-slots (flag mode link-count uid gid size mtime name) entry
-	   (updating-output (pane 
-			     :cache-value (list flag mode uid gid mtime)
-			     :cache-test #'equal
-			     :unique-id name)
-	     (with-output-as-presentation
-		 (pane entry 'ftd-entry :single-box t) 
-	       (fresh-line pane)
-	       (with-drawing-options
-		   (pane :ink *flag-ink*)
-		 (princ flag pane))
-	       (format pane "  ~A" (ftd-directory:mode->string mode))
-	       (format pane "  ~vD" link-count-width link-count)
-	       (format pane "  ~8A  ~8A"
-		       (ftd-directory:uid->name uid)
-		       (ftd-directory:gid->name gid))
-	       (format pane "  ~vD" size-width size)
-	       (format pane "  ~A" (ftd-directory:ls-time-string
-				    (ftd-directory:unix->universal mtime)
-				    now)) 
-	       (with-drawing-options
-		   (pane :ink (if (char= flag *flag-character*)
-				  *deleted-files-ink*
-				  *marked-files-ink*))
-		 (format pane "  ~A" name)
-		 (when (typep entry 'ftd-link-entry)
-		   (format pane " -> ~A" (entry-linkname entry)))))))
-	(draw-cursor pane
-		     (pane-cursor-line pane)
-	     size-width link-count-width))))
+	   (loop for count below (flexichain:nb-elements entries)
+		 for entry = (flexichain:element* entries count)
+		 with link-count-width
+		   = (max 4 (ftd-directory::integer-string-length max-link-count))
+		 with size-width = (ftd-directory::integer-string-length max-size)
+		 do
+		    (with-slots (flag mode link-count uid gid size mtime name) entry
+		      (updating-output (pane 
+					:cache-value (list flag mode uid gid mtime)
+					:cache-test #'equal
+					:unique-id name)
+			(with-output-as-presentation
+			    (pane entry 'ftd-entry :single-box t) 
+			  (fresh-line pane)
+			  (with-drawing-options
+			      (pane :ink *flag-ink*)
+			    (princ flag pane))
+			  (format pane "  ~A" (ftd-directory:mode->string mode))
+			  (format pane "  ~vD" link-count-width link-count)
+			  (format pane "  ~8A  ~8A" 
+				  (ftd-directory:uid->name uid)
+                                  (ftd-directory:gid->name gid))
+			  (format pane "  ~vD" size-width size)
+			  (format pane "  ~A" (ftd-directory:ls-time-string
+					       (ftd-directory:unix->universal mtime)
+					       now)) 
+			  (with-drawing-options
+                              (pane :ink 
+                               (cond
+                                ((char= flag *flag-character*) *deleted-files-ink*)
+                                ;;; XXX, this is an utterly horrid test to determine if a file is a directory...
+                                ((not (mm::scan #\. name)) climi::+green+)
+                                (t *marked-files-ink*)))
+                            (format pane "  ~A" name)
+			    (when (typep entry 'ftd-link-entry)
+			      (format pane " -> ~A" (entry-linkname entry)))))))
+		    (draw-cursor pane
+				 (pane-cursor-line pane)
+				 size-width link-count-width))))
 
 (defun draw-cursor (pane cursor-line size-width link-count-width)
   (let* ((text-style (medium-text-style pane))
@@ -176,25 +189,38 @@
 	 (spacing (stream-vertical-spacing pane))
 	 (height (+ ascent descent spacing))
 	 (width (text-style-width text-style pane))
-	 (cursor-left (* width (+ size-width link-count-width 53)))
+	 (cursor-left ;; (* width (+ size-width link-count-width 53))
+	   10)
 	 (cursor-top (* cursor-line height))
 	 (cursor-bottom (+ cursor-top ascent descent)))
     (updating-output (pane :unique-id -1)
       (draw-rectangle* pane
 		       cursor-left cursor-top
-		       (+ cursor-left 3) cursor-bottom
+		       (+ cursor-left 50) cursor-bottom
 		       :ink *cursor-ink*))))
 
-(defun ftd ()
-  "Starts up the FTD application"
-  (let ((frame (make-application-frame
-		'ftd)))
-    (run-frame-top-level frame)))
+(defvar ftd-frame nil)
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; 
+;; (defun ftd (pathname)
+;;  "Starts up the FTD application"
+;;  (let ((frame (make-application-frame 'ftd)))
+;;    (setf ftd-frame frame)
+;;    (run-frame-top-level frame)))
+
+(defun ftd (&optional (dir #P"/tmp/"))
+  "Starts up the FTD application"
+  (let* ((fm (find-frame-manager :port (find-port)))
+	 (start-directory dir)
+         (frame (make-application-frame 'ftd :frame-manager fm)))
+    (setf ftd-frame frame)
+    (values (clim-sys:make-process (lambda () 
+                                     (unwind-protect (run-frame-top-level frame)
+                                       (disown-frame fm frame)))
+                                   :name "dired")
+            frame)))
+
 ;;; Conditions
+;;; ============================================================================
 
 (define-condition shell-error (simple-error)
   ()
@@ -231,10 +257,8 @@ act on a non-existent directory"))
     (no-such-directory ()
       (beep) (display-message "No such directory"))))
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; 
 ;;; External programs
+;;; ============================================================================
 
 #+openmcl
 (defun run-shell-program (name args)
@@ -262,10 +286,9 @@ act on a non-existent directory"))
 		()
 		(make-condition 'shell-error))))))
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; 
+
 ;;; Datastructures
+;;; ============================================================================
 
 (defclass ftd-container ()
      ((entries :initarg :entries :accessor entries :initform nil)
@@ -457,12 +480,8 @@ act on a non-existent directory"))
   (declare (ignore view))
   (princ (entry-name object) stream))
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; 
 ;;; Filling datastructures
-
-
+;;; ============================================================================
 
 (defun get-system-pathnames (system-name)
   (let ((system (asdf:find-system system-name))
@@ -838,10 +857,8 @@ act on a non-existent directory"))
 			(:access #\a)))
    time))
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; 
 ;;; Helper functions
+;;; ============================================================================
 
 (defun last1 (list)
   (car (last list)))
@@ -863,19 +880,20 @@ act on a non-existent directory"))
 	    (make-window directory)
 	  (let ((tab-pane (find-pane-named *application-frame* 'tab-layout-pane))
 		(new-tab
-		 (make-tab-pane-from-list title
-					  window)))
-	    (add-pane new-tab tab-pane t)
+		 (clim-tab-layout::make-tab-page title window)))
+	    (add-page new-tab tab-pane t)
 	    (setf (pane-needs-redisplay pane) enabled))))
+
+(defun jump-to-dir (directory)
+  (add-tab-for-directory directory (last1 (pathname-directory (with-slots (pathname) directory pathname)))))
 
 (defun close-tab (pane)
   (cond ((cdr (pane/window *application-frame*))
 	 (let ((pane/window (find pane (pane/window *application-frame*)
 				  :test #'equal :key #'car)))
 	   (setf (pane/window *application-frame*)
-		 (delete pane/window (pane/window *application-frame*)))
-	 (remove-pane (cdr pane/window)
-		      (find-pane-named *application-frame* 'tab-layout-pane))))
+                 (delete pane/window (pane/window *application-frame*)))
+	   (clim-tab-layout::remove-page (cdr pane/window))))
 	(t
 	 (beep)
 	 (display-message "Can't close the last tab. Type C-x C-c to quit."))))
@@ -1243,13 +1261,8 @@ act on a non-existent directory"))
 			       command-line
 			       (namestring (entry-pathname entry)))))))))))
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; 
 ;;; Commands and key bindings
-
-(define-command-table global-ftd-table
-    :inherit-from (global-esa-table keyboard-macro-table help-table))
+;;; ============================================================================
 
 (define-command (com-dired :name t :command-table global-ftd-table)
     ()
@@ -1271,8 +1284,6 @@ act on a non-existent directory"))
 	     (add-tab-for-directory (make-directory directory)
 				    (short-directory-name directory))))))))
 
-(set-key 'com-dired 'global-ftd-table '((#\x :control) (#\d)))
-
 (define-command (com-system :name t :command-table global-ftd-table)
     ()
   (let* ((system (accept 'string :prompt "System"))
@@ -1280,8 +1291,6 @@ act on a non-existent directory"))
     (if (null dir)
 	(display-message "No files in system ~A" system)
 	(add-tab-for-directory dir system))))
-
-(set-key 'com-system 'global-ftd-table '((#\x :control) (#\s)))
 
 (define-command (com-find-name :name t :command-table global-ftd-table)
     ()
@@ -1296,8 +1305,6 @@ act on a non-existent directory"))
 			 directory name)
 	(add-tab-for-directory dir name))))
 
-(set-key 'com-find-name 'global-ftd-table '((#\x :control) (#\n)))
-
 (define-command (com-find-grep :name t :command-table global-ftd-table)
     ()
   (let* ((default-directory
@@ -1311,8 +1318,6 @@ act on a non-existent directory"))
 			 directory regex)
 	(add-tab-for-directory dir regex))))
 
-(set-key 'com-find-grep 'global-ftd-table '((#\x :control) (#\g)))
-
 (define-command (com-find-dired :name t :command-table global-ftd-table)
     ()
   (let* ((default-directory
@@ -1325,8 +1330,6 @@ act on a non-existent directory"))
 	(display-message "No files match find ~A" args)
 	(add-tab-for-directory directory args))))
 
-(set-key 'com-find-dired 'global-ftd-table '((#\x :control) (#\f)))
-
 (define-command (com-new-tab :name t :command-table global-ftd-table)
     ((count 'integer))
   (let ((name (accept 'string :prompt "Tab name"))
@@ -1334,10 +1337,6 @@ act on a non-existent directory"))
     (add-tab-for-directory
      (make-file-list name (mapcar #'entry-pathname entries))
      name)))
-
-(set-key `(com-new-tab ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '((#\x :control) (#\t)))
 
 (define-command (com-add-files :name t :command-table global-ftd-table)
     ((count 'integer))
@@ -1362,75 +1361,35 @@ act on a non-existent directory"))
       (new-listing dir)
       (setf (pane-needs-redisplay pane) t))))
 
-(set-key `(com-add-files ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '((#\x :control) (#\a)))
-
 (define-command (com-close-tab :name t :command-table global-ftd-table)
     ()
-  (close-tab (current-pane)))
-
-(set-key 'com-close-tab 'global-ftd-table '(#\q))
+  (if (= 1 (length (current-tabs)))
+      (esa::com-quit)
+      (remove-page (tab-with-directory (directory-pathname (pane-directory (current-pane)))))))
 
 (define-command (com-next-line :name t :command-table global-ftd-table)
     ((count 'integer :prompt "Number of lines"))
-  (next-line (current-pane) count))
-
-(set-key `(com-next-line ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '(#\n))
-
-(set-key `(com-next-line ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '((#\n :control)))
-
-(set-key `(com-next-line ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '(#\Space))
-
-(set-key `(com-next-line ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '(:down))
+  (next-line (current-pane) (or count 1)))
 
 (define-command (com-previous-line :name t :command-table global-ftd-table)
     ((count 'integer :prompt "Number of lines"))
-  (next-line (current-pane) (- count)))
-
-(set-key `(com-previous-line ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '(#\p))
-
-(set-key `(com-previous-line ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '((#\p :control)))
-
-(set-key `(com-previous-line ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '(:up))
+  (next-line (current-pane) (- (or count 1))))
 
 (define-command (com-page-down :name t :command-table global-ftd-table)
     ()
   (page-up/down (current-pane) t))
 
-(set-key 'com-page-down 'global-ftd-table '((#\v :control)))
-
 (define-command (com-page-up :name t :command-table global-ftd-table)
     ()
   (page-up/down (current-pane)))
-
-(set-key 'com-page-up 'global-ftd-table '((#\v :meta)))
 
 (define-command (com-last-line :name t :command-table global-ftd-table)
     ()
   (goto-line (current-pane)))
 
-(set-key 'com-last-line 'global-ftd-table '((#\> :shift :meta)))
-
 (define-command (com-first-line :name t :command-table global-ftd-table)
     ()
   (goto-line (current-pane) 0))
-
-(set-key 'com-first-line 'global-ftd-table '((#\< :shift :meta)))
 
 (define-command (com-goto-this-line :name nil :command-table global-ftd-table)
     ((pane 'pane) (y 'integer))
@@ -1448,11 +1407,7 @@ act on a non-existent directory"))
 
 (define-command (com-keyboard-delete-file :name nil :command-table global-ftd-table)
     ((count 'integer))
-  (mark-file (current-pane) *flag-character* count))
-
-(set-key `(com-keyboard-delete-file ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '(#\d))
+  (mark-file (current-pane) *flag-character* (or count 1)))
 
 (define-command (com-undelete-file :name t :command-table global-ftd-table)
     ((entries '(sequence ftd-entry) :prompt "File(s)"))
@@ -1460,27 +1415,11 @@ act on a non-existent directory"))
 
 (define-command (com-keyboard-undelete-file :name nil :command-table global-ftd-table)
     ((count 'integer))
-  (mark-file (current-pane) #\Space count))
-
-(set-key `(com-keyboard-undelete-file ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '(#\u))
-
-(set-key `(com-keyboard-undelete-file ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '((#\*) (#\u)))
+  (mark-file (current-pane) #\Space (or count 1)))
 
 (define-command (com-backward-undelete-file :name t :command-table global-ftd-table)
     ((count 'integer :prompt "Number of lines"))
   (mark-file (current-pane) #\Space (- count)))
-
-(set-key `(com-backward-undelete-file ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '(#\Backspace))
-
-(set-key `(com-backward-undelete-file ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '((#\*) (#\Backspace)))
 
 (define-command (com-flag-backup-files :name t :command-table global-ftd-table)
     ()
@@ -1492,8 +1431,6 @@ act on a non-existent directory"))
     (lambda (entry)
       (setf (entry-flag entry) *flag-character*))
     "Flagged ~D file~:P"))
-
-(set-key 'com-flag-backup-files 'global-ftd-table '(#\~))
 
 (define-command (com-flag-auto-save-files :name t :command-table global-ftd-table)
     ()
@@ -1507,8 +1444,6 @@ act on a non-existent directory"))
       (setf (entry-flag entry) *flag-character*))
     "Flagged ~D file~:P"))
 
-(set-key 'com-flag-auto-save-files 'global-ftd-table '(#\#))
-
 (define-command (com-regexp-flag-files :name t :command-table global-ftd-table)
     ()
   (let* ((regexp (accept 'string :prompt "Regexp"))
@@ -1520,13 +1455,9 @@ act on a non-existent directory"))
 	(setf (entry-flag entry) *flag-character*))
       "Flagged ~D file~:P")))
 
-(set-key 'com-regexp-flag-files 'global-ftd-table '((#\%) (#\d)))
-
 (define-command (com-flag-excess-backups :name t :command-table global-ftd-table)
     ()
   (mark-excess-backups (current-pane) *flag-character*))
-
-(set-key 'com-flag-excess-backups 'global-ftd-table '(#\.))
 
 (define-command (com-expunge :name t :command-table global-ftd-table)
     ()
@@ -1534,23 +1465,13 @@ act on a non-existent directory"))
 	 (entries (marked-entries pane *flag-character*)))
     (when entries (delete-entries pane entries))))
 
-(set-key 'com-expunge 'global-ftd-table '(#\x))
-
 (define-command (com-mark-file :name t :command-table global-ftd-table)
     ((entries '(sequence ftd-entry) :prompt "File(s)"))
   (mark-files (current-pane) entries *mark-character*))
 
 (define-command (com-keyboard-mark-file :name nil :command-table global-ftd-table)
     ((count 'integer :prompt "Number of lines"))
-  (mark-file (current-pane) *mark-character* count))
-
-(set-key `(com-keyboard-mark-file ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '(#\m))
-
-(set-key `(com-keyboard-mark-file ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '((#\*) (#\m)))
+  (mark-file (current-pane) *mark-character* (or count 1)))
 
 (define-command (com-mark-all-files :name t :command-table global-ftd-table)
     ()
@@ -1560,9 +1481,9 @@ act on a non-existent directory"))
       (setf (entry-flag entry) *mark-character*))
     "Marked ~D file~:P"))
 
-(set-key 'com-mark-all-files 'global-ftd-table '((#\*) (#\s)))
-
-(define-command (com-regexp-mark-files :name t :command-table global-ftd-table)
+(define-command (com-regexp-mark-files
+                 :name t :menu t
+                 :command-table global-ftd-table)
     ()
   (let* ((regexp (accept 'string :prompt "Regexp")) 
 	 (scanner (cl-ppcre:create-scanner regexp)))
@@ -1573,16 +1494,10 @@ act on a non-existent directory"))
 	(setf (entry-flag entry) *mark-character*))
       "Marked ~D file~:P")))
 
-(set-key 'com-regexp-mark-files 'global-ftd-table '((#\%) (#\m)))
-
-(set-key 'com-regexp-mark-files 'global-ftd-table '((#\*) (#\%)))
-
 (define-command (com-eval-mark-files :name t :command-table global-ftd-table)
     ()
   (let ((expression (accept 'string :prompt "Expression")))
     (mark-eval (current-pane) expression)))
-
-(set-key 'com-eval-mark-files 'global-ftd-table '((#\*) (#\()))
 
 (define-command (com-grep-mark-files :name t :command-table global-ftd-table)
     ()
@@ -1596,8 +1511,6 @@ act on a non-existent directory"))
       (lambda (entry)
 	(setf (entry-flag entry) *mark-character*))
       "Marked ~D file~:P")))
-
-(set-key 'com-grep-mark-files 'global-ftd-table '((#\%) (#\g)))
 
 (define-command (com-mark-extension :name t :command-table global-ftd-table)
     ()
@@ -1614,8 +1527,6 @@ act on a non-existent directory"))
 	(setf (entry-flag entry) *mark-character*))
       "Marked ~D file~:P")))
 
-(set-key 'com-mark-extension 'global-ftd-table '((#\*) (#\.)))
-
 (define-command (com-mark-executables :name t :command-table global-ftd-table)
     ()
   (do-entries (current-pane)
@@ -1624,8 +1535,6 @@ act on a non-existent directory"))
       (setf (entry-flag entry) *mark-character*))
     "Marked ~D file~:P"))
 
-(set-key 'com-mark-executables 'global-ftd-table '((#\*) (#\*)))
-
 (define-command (com-mark-symlinks :name t :command-table global-ftd-table)
     ()
   (do-entries (current-pane)
@@ -1633,8 +1542,6 @@ act on a non-existent directory"))
     (lambda (entry)
       (setf (entry-flag entry) *mark-character*))
     "Marked ~D link~:P"))
-
-(set-key 'com-mark-symlinks 'global-ftd-table '((#\*) (#\@)))
 
 (define-command (com-mark-directories :name t :command-table global-ftd-table)
     ((count 'integer))
@@ -1649,39 +1556,21 @@ act on a non-existent directory"))
 		*mark-character*
 		#\Space)))))
 
-(set-key `(com-mark-directories ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '((#\*) (#\/)))
-
 (define-command (com-next-marked-file :name t :command-table global-ftd-table)
     ()
   (next/prev-marked-file (current-pane)))
-
-(set-key 'com-next-marked-file 'global-ftd-table '((#\*) (#\n :control)))
-
-(set-key 'com-next-marked-file 'global-ftd-table '((#\} :meta :shift)))
 
 (define-command (com-previous-marked-file :name t :command-table global-ftd-table)
     ()
   (next/prev-marked-file (current-pane) t))
 
-(set-key 'com-previous-marked-file 'global-ftd-table '((#\*) (#\p :control)))
-
-(set-key 'com-previous-marked-file 'global-ftd-table '((#\{ :meta :shift)))
-
 (define-command (com-toggle-marks :name t :command-table global-ftd-table)
     ()
   (rotate-marks (current-pane) (list *mark-character* #\Space)))
 
-(set-key 'com-toggle-marks 'global-ftd-table '((#\*) (#\t)))
-
 (define-command (com-unmark-all-marks :name t :command-table global-ftd-table)
     ()
   (remove-all-marks (current-pane)))
-
-(set-key 'com-unmark-all-marks 'global-ftd-table '((#\*) (#\!)))
-
-(set-key 'com-unmark-all-marks 'global-ftd-table '(#\U))
 
 (define-command (com-unmark-all-files :name t :command-table global-ftd-table)
     ((query 'boolean))
@@ -1696,10 +1585,6 @@ act on a non-existent directory"))
 	    (replace-marks (current-pane) mark #\Space))
 	(display-message "Not a character"))))
 
-(set-key `(com-unmark-all-files ,*numeric-argument-p*)
-	 'global-ftd-table
-	 '((#\*) (#\?)))
-
 (define-command (com-change-marks :name t :command-table global-ftd-table)
     ()
   (let* ((old-mark (read-character "Replace: "))
@@ -1707,8 +1592,6 @@ act on a non-existent directory"))
     (if (and (graphic-char-p old-mark) (graphic-char-p new-mark))
 	(replace-marks (current-pane) old-mark new-mark)
 	(display-message "Not a valid mark"))))
-
-(set-key 'com-change-marks 'global-ftd-table '((#\*) (#\c)))
 
 (define-command (com-chmod :name t :command-table global-ftd-table)
     ((count 'integer))
@@ -1718,10 +1601,6 @@ act on a non-existent directory"))
       (update-entries entries)
       (setf (pane-needs-redisplay (current-pane)) t)))
 
-(set-key `(com-chmod ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '(#\M))
-
 (define-command (com-chgrp :name t :command-table global-ftd-table)
     ((count 'integer))
   (let ((group (accept 'string :prompt "Group"))
@@ -1729,10 +1608,6 @@ act on a non-existent directory"))
       (chgrp-entries entries group)
       (update-entries entries)
       (setf (pane-needs-redisplay (current-pane)) t)))
-
-(set-key `(com-chgrp ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '(#\G))
 
 (define-command (com-chown :name t :command-table global-ftd-table)
     ((count 'integer))
@@ -1742,10 +1617,6 @@ act on a non-existent directory"))
     (update-entries entries)
     (setf (pane-needs-redisplay (current-pane)) t)))
 
-(set-key `(com-chown ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '(#\O))
-
 (define-command (com-touch :name t :command-table global-ftd-table)
     ((count 'integer))
   (let ((time (accept 'string :prompt "Time"))
@@ -1753,10 +1624,6 @@ act on a non-existent directory"))
     (touch-time entries time)
     (update-entries entries)
     (setf (pane-needs-redisplay (current-pane)) t)))
-
-(set-key `(com-touch ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '(#\T))
 
 (define-command (com-create-directory :name t :command-table global-ftd-table)
     ()
@@ -1771,48 +1638,36 @@ act on a non-existent directory"))
 	     (setf (pane-needs-redisplay pane) t)))
 	  (t (display-message "~A already exists")))))
 
-(set-key 'com-create-directory 'global-ftd-table '(#\+))
+(defun tab-with-directory (directory)
+  (find-if (lambda (pane/window) (equal (truename directory)
+                                        (truename (directory-pathname 
+                                                   (pane-directory (car pane/window))))))
+           (current-tabs)))
 
 (define-command (com-visit-file :name t :command-table global-ftd-table)
     ()
   (let* ((pane (current-pane))
-	 (cursor (pane-cursor-line pane))
-	 (directory (pane-directory pane))
-	 (entries (entries directory))
-	 (current-entry (flexichain:element* entries cursor))
-	 (current-pathname (entry-pathname current-entry)))
-    (cond
-      ((cl-fad:directory-pathname-p current-pathname)
-       (unless (cl-fad:directory-exists-p current-pathname)
-	 (beep)
-	 (display-message "No such directory: ~A" (namestring current-pathname))
-	 (return-from com-visit-file))
-       (flet ((directory-match (pane/window)
-		(equal (directory-pathname (pane-directory (car pane/window)))
-		       current-pathname)))
-	 (let ((existing-tab
-		(find-if #'directory-match (pane/window *application-frame*))))
-	   (if existing-tab
-	       (switch-to-pane (cdr existing-tab)
-			       'tab-layout-pane)
-	       (add-tab-for-directory
-		(make-instance 'ftd-directory :pathname current-pathname)
-		(let ((last1 (last1 (pathname-directory current-pathname))))
-		  (if (eql last1 :absolute) "/" last1)))))))
-      (t
-       (ed current-pathname)))))
-
-(set-key 'com-visit-file 'global-ftd-table '(#\f))
+         (cursor (pane-cursor-line pane))
+         (directory (pane-directory pane))
+         (entries (entries directory))
+         (current-entry (flexichain:element* entries cursor))
+         (current-pathname (entry-pathname current-entry)))
+    (cond ((cl-fad:directory-pathname-p (probe-file current-pathname))
+           (unless (cl-fad:directory-exists-p current-pathname)
+             (beep)
+             (display-message "No such directory: ~A" (namestring current-pathname))
+             (return-from com-visit-file))
+           (mm::aif (tab-with-directory current-pathname)
+                    (switch-to-page mm::it)
+                    (jump-to-dir (make-directory (probe-file current-pathname)))))
+          (t (ed current-pathname)
+             (stumpwm::select-window "Climacs")))))
 
 (define-command (com-delete :name t :command-table global-ftd-table)
     ((count 'integer))
   (let* ((pane (current-pane))
 	 (entries (relevant-entries pane count)))
     (when entries (delete-entries pane entries))))
-
-(set-key `(com-delete ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '(#\D))
 
 (define-command (com-copy :name t :command-table global-ftd-table)
     ((count 'integer))
@@ -1826,14 +1681,10 @@ act on a non-existent directory"))
 		       default-directory)))
     (copy-entries pane entries destination)))
 
-(set-key `(com-copy ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '(#\C))
-
 (define-command (com-rename :name t :command-table global-ftd-table)
     ((count 'integer))
   (let* ((pane (current-pane))
-	 (entries (relevant-entries pane count))
+	 (entries (relevant-entries pane (or count 1)))
 	 (default-directory (namestring (directory-pathname
 					 (pane-directory pane))))
 	 (destination (expand-filename
@@ -1842,14 +1693,10 @@ act on a non-existent directory"))
 		       default-directory)))
     (rename-entries pane entries destination)))
 
-(set-key `(com-rename ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '(#\R))
-
 (define-command (com-hardlink :name t :command-table global-ftd-table)
     ((count 'integer))
   (let* ((pane (current-pane))
-	 (entries (relevant-entries pane count))
+	 (entries (relevant-entries pane (or count 1)))
 	 (default-directory (namestring (directory-pathname
 					 (pane-directory pane))))
 	 (destination (expand-filename
@@ -1857,10 +1704,6 @@ act on a non-existent directory"))
 			       :prompt "Destination")
 		       default-directory)))
     (link-entries pane entries destination)))
-
-(set-key `(com-hardlink ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '(#\H))
 
 (define-command (com-symlink :name t :command-table global-ftd-table)
     ((count 'integer))
@@ -1874,19 +1717,11 @@ act on a non-existent directory"))
 		       default-directory)))
     (link-entries pane entries destination t)))
 
-(set-key `(com-symlink ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '(#\S))
-
 (define-command (com-upcase :name t :command-table global-ftd-table)
     ((count 'integer))
   (let* ((pane (current-pane))
 	 (entries (relevant-entries pane count)))
     (change-case-entries pane entries #'string-upcase)))
-
-(set-key `(com-upcase ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '((#\%) (#\u)))
 
 (define-command (com-downcase :name t :command-table global-ftd-table)
     ((count 'integer))
@@ -1894,19 +1729,11 @@ act on a non-existent directory"))
 	 (entries (relevant-entries pane count)))
     (change-case-entries pane entries #'string-downcase)))
 
-(set-key `(com-downcase ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '((#\%) (#\l)))
-
 (define-command (com-capitalize :name t :command-table global-ftd-table)
     ((count 'integer))
   (let* ((pane (current-pane))
 	 (entries (relevant-entries pane count)))
     (change-case-entries pane entries #'string-capitalize)))
-
-(set-key `(com-capitalize ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '((#\%) (#\k)))
 
 (define-command (com-regexp-rename :name t :command-table global-ftd-table)
     ((count 'integer))
@@ -1916,10 +1743,6 @@ act on a non-existent directory"))
 	 (entries (relevant-entries pane count)))
     (regexp-rename-entries pane entries from to)))
 
-(set-key `(com-regexp-rename ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '((#\%) (#\R)))
-
 (define-command (com-regexp-hardlink :name t :command-table global-ftd-table)
     ((count 'integer))
   (let* ((from (accept 'string :prompt "Regexp hardlink from"))
@@ -1927,10 +1750,6 @@ act on a non-existent directory"))
 	 (pane (current-pane))
 	 (entries (relevant-entries pane count)))
     (regexp-link-entries pane entries from to)))
-
-(set-key `(com-regexp-hardlink ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '((#\%) (#\H)))
 
 (define-command (com-regexp-symlink :name t :command-table global-ftd-table)
     ((count 'integer))
@@ -1940,10 +1759,6 @@ act on a non-existent directory"))
 	 (entries (relevant-entries pane count)))
     (regexp-link-entries pane entries from to t)))
 
-(set-key `(com-regexp-symlink ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '((#\%) (#\S)))
-
 (define-command (com-regexp-copy :name t :command-table global-ftd-table)
     ((count 'integer))
   (let* ((from (accept 'string :prompt "Regexp copy from"))
@@ -1952,19 +1767,11 @@ act on a non-existent directory"))
 	 (entries (relevant-entries pane count)))
     (regexp-link-entries pane entries from to t)))
 
-(set-key `(com-regexp-copy ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '((#\%) (#\C)))
-
 (define-command (com-redisplay :name t :command-table global-ftd-table)
     ((count 'integer))
   (let ((entries (relevant-entries (current-pane) count)))
     (update-entries entries)
     (setf (pane-needs-redisplay (current-pane)) t)))
-
-(set-key `(com-redisplay ,*numeric-argument-marker*)
-	 'global-ftd-table
-	 '(#\l))
 
 (define-command (com-revert-tab :name t :command-table global-ftd-table)
     ()
@@ -1985,46 +1792,186 @@ act on a non-existent directory"))
 		    (setf (pane-cursor-line pane) (1- (length new-entries))))
 		  (setf (pane-needs-redisplay pane) t))))
 
-(set-key 'com-revert-tab 'global-ftd-table '(#\g))
-
-(define-command (com-shell-command :name t :command-table global-ftd-table)
+(define-command (com-shell-command :name t
+                 :command-table global-ftd-table
+                 :menu t)
     ((count 'integer))
   (let* ((pane (current-pane))
-	 (entries (relevant-entries pane count))
+	 (entries (relevant-entries pane (or count 1)))
 	 (command-line (accept 'string :prompt "Command line")))
     (shell-command-entries pane entries command-line)))
 
+(define-command (com-open-in-browser :name t :command-table global-ftd-table)
+    ()
+  (let* ((pane (current-pane))
+	 (cursor (pane-cursor-line pane))
+	 (directory (pane-directory pane))
+	 (entries (entries directory))
+	 (current-entry (flexichain:element* entries cursor))
+	 (current-pathname (entry-pathname current-entry))
+	 (current-pathname-as-dir (cl-fad:pathname-as-directory current-pathname)))
+  (mm::browse-uri current-pathname)))
+
+(define-command (com-up-directory :name t :command-table global-ftd-table :menu t)
+    ()
+  (when (equal (truename (directory-pathname (pane-directory (current-pane))))
+               (truename #P"~/"))
+    (display-message "At filesystem root")
+    (return-from com-up-directory))
+  (let* ((pane (current-pane))
+         (directory (pane-directory pane)) 
+         (parent-directory
+          (cl-fad:pathname-parent-directory 
+           (directory-pathname directory))))    
+    (mm::aif (tab-with-directory parent-directory)
+             (switch-to-page mm::it)
+             (add-tab-for-directory (make-directory parent-directory)
+                                    (last1 (pathname-directory parent-directory))))))
+
+(set-key 'com-dired 'global-ftd-table '((#\x :control) (#\d)))
+(set-key 'com-system 'global-ftd-table '((#\x :control) (#\s)))
+(set-key 'com-find-name 'global-ftd-table '((#\x :control) (#\n)))
+(set-key 'com-find-grep 'global-ftd-table '((#\x :control) (#\g)))
+(set-key 'com-find-dired 'global-ftd-table '((#\x :control) (#\f)))
+(set-key `(com-new-tab ,*numeric-argument-marker*) 'global-ftd-table '((#\x :control) (#\t)))
+(set-key `(com-add-files ,*numeric-argument-marker*) 'global-ftd-table '((#\x :control) (#\a)))
+(set-key 'com-close-tab 'global-ftd-table '(#\q))
+(set-key `(com-next-line ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '(#\n))
+(set-key `(com-next-line ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '((#\n :control)))
+(set-key `(com-next-line ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '(#\Space))
+(set-key `(com-next-line ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '(:down))
+(set-key `(com-previous-line ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '(#\p))
+(set-key `(com-previous-line ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '((#\p :control)))
+(set-key `(com-previous-line ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '(:up))
+(set-key 'com-page-down 'global-ftd-table '((#\v :control)))
+(set-key 'com-page-up 'global-ftd-table '((#\v :meta)))
+(set-key 'com-last-line 'global-ftd-table '((#\> :meta)))
+(set-key 'com-first-line 'global-ftd-table '((#\< :meta)))
+(set-key `(com-keyboard-delete-file ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '(#\d))
+(set-key `(com-keyboard-undelete-file ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '(#\u))
+(set-key `(com-keyboard-undelete-file ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '((#\*) (#\u)))
+(set-key `(com-backward-undelete-file ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '(#\Backspace))
+(set-key `(com-backward-undelete-file ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '((#\*) (#\Backspace)))
+(set-key 'com-flag-backup-files 'global-ftd-table '(#\~))
+(set-key 'com-flag-auto-save-files 'global-ftd-table '(#\#))
+(set-key 'com-regexp-flag-files 'global-ftd-table '((#\%) (#\d)))
+(set-key 'com-flag-excess-backups 'global-ftd-table '(#\.))
+(set-key 'com-expunge 'global-ftd-table '(#\x))
+(set-key `(com-keyboard-mark-file ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '(#\m))
+(set-key `(com-keyboard-mark-file ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '((#\*) (#\m)))
+(set-key 'com-mark-all-files 'global-ftd-table '((#\*) (#\s)))
+(set-key 'com-regexp-mark-files 'global-ftd-table '((#\*) (#\%)))
+(set-key 'com-eval-mark-files 'global-ftd-table '((#\*) (#\()))
+(set-key 'com-grep-mark-files 'global-ftd-table '((#\%) (#\g)))
+(set-key 'com-mark-extension 'global-ftd-table '((#\*) (#\.)))
+(set-key 'com-mark-executables 'global-ftd-table '((#\*) (#\*)))
+(set-key 'com-mark-symlinks 'global-ftd-table '((#\*) (#\@)))
+(set-key `(com-mark-directories ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '((#\*) (#\/)))
+(set-key 'com-next-marked-file 'global-ftd-table '((#\*) (#\n :control)))
+(set-key 'com-next-marked-file 'global-ftd-table '((#\} :meta :shift)))
+(set-key 'com-previous-marked-file 'global-ftd-table '((#\*) (#\p :control)))
+(set-key 'com-previous-marked-file 'global-ftd-table '((#\{ :meta :shift)))
+(set-key 'com-toggle-marks 'global-ftd-table '((#\*) (#\t)))
+(set-key 'com-unmark-all-marks 'global-ftd-table '((#\*) (#\!)))
+(set-key 'com-unmark-all-marks 'global-ftd-table '(#\U))
+(set-key `(com-unmark-all-files ,*numeric-argument-p*)
+	 'global-ftd-table
+	 '((#\*) (#\?)))
+(set-key 'com-change-marks 'global-ftd-table '((#\*) (#\c)))
+(set-key `(com-chmod ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '(#\M))
+(set-key `(com-chgrp ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '(#\G))
+(set-key `(com-chown ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '(#\O))
+(set-key `(com-touch ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '(#\T))
+(set-key 'com-create-directory 'global-ftd-table '(#\+))
+(set-key 'com-visit-file 'global-ftd-table '(#\f))
+(set-key `(com-delete ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '(#\D))
+(set-key `(com-copy ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '(#\C))
+(set-key `(com-rename ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '(#\R))
+(set-key `(com-hardlink ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '(#\H))
+(set-key `(com-symlink ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '(#\S))
+(set-key `(com-upcase ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '((#\%) (#\u)))
+(set-key `(com-downcase ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '((#\%) (#\l)))
+(set-key `(com-capitalize ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '((#\%) (#\k)))
+(set-key `(com-regexp-rename ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '((#\%) (#\R)))
+(set-key `(com-regexp-hardlink ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '((#\%) (#\H)))
+(set-key `(com-regexp-symlink ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '((#\%) (#\S)))
+(set-key `(com-regexp-copy ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '((#\%) (#\C)))
+(set-key `(com-redisplay ,*numeric-argument-marker*)
+	 'global-ftd-table
+	 '(#\l))
+(set-key 'com-revert-tab 'global-ftd-table '(#\g))
 (set-key `(com-shell-command ,*numeric-argument-marker*)
 	 'global-ftd-table
 	 '(#\!))
-
 (set-key `(com-shell-command ,*numeric-argument-marker*)
 	 'global-ftd-table
 	 '(#\X))
+(set-key 'com-open-in-browser 'global-ftd-table '(#\e))
+(set-key 'com-up-directory 'global-ftd-table '(#\^))
 
-(define-command (com-set-variable :name t :command-table global-ftd-table)
-    ()
-  (let* ((var (accept
-	       `(member-alist ,*ftd-user-variables*)
-	       :prompt "Variable"))
-	 (p-type (cdr var))
-	 (val (handler-bind
-		  ((input-not-of-required-type
-		    (lambda (e) (declare (ignore e))
-			    (beep)
-			    (display-message "We were looking for a ~A" p-type)
-			    (return-from com-set-variable nil))))
-		(accept (cdr var) :prompt "Value"))))
-    (setf (symbol-value (car var)) val)))
+(in-package #:esa)
 
-
-;;;;;;;;; TESTING
-
-;; (define-command (com-test :name t :command-table global-ftd-table)
-;;     ()
-;;   (let* ((var (accept
-;; 	       `(member-alist ,*ftd-user-variables*)
-;; 	       :prompt "Variable"))
-;; 	 (val (accept (cdr var))))
-;;     (setf (symbol-value (car var)) val)))
-
+(defmethod esa-current-window ((frame ftd::ftd))
+  (first (slot-value frame 'windows)))

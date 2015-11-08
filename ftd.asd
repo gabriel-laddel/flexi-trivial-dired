@@ -8,12 +8,12 @@
 (cl:in-package :ftd.system)
 
 (defsystem :ftd
-    :description "Flexi-Trivial Directory editor"
-    :version "0.0.3"
-    :author "John Splittist <splittist at yahoo.com>"
-    :depends-on (:mcclim :tab-layout :esa :cl-fad :cl-ppcre :cffi-unix :flexichain)
-    :components ((:file "package")
-		 (:file "variables" :depends-on ("package"))
-		 (:file "user-variables" :depends-on ("package" "variables"))
-		 (:file "application" :depends-on ("package" "variables" "user-variables"))
-		 (:file "ftd-directory" :depends-on ("package"))))
+  :description "Flexi-Trivial Directory editor"
+  :version "0.0.3"
+  :author "John Splittist <splittist at yahoo.com>"
+  :depends-on (:mcclim :clim-examples :esa :cl-fad :cl-ppcre :osicat :flexichain)
+  :components ((:file "package")
+	       (:file "variables" :depends-on ("package"))
+	       (:file "application" :depends-on ("package" "variables"))
+	       (:file "ftd-directory" :depends-on ("package"))
+               (:file "monkey-patches" :depends-on ("ftd-directory"))))

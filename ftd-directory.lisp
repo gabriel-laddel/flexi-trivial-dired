@@ -5,17 +5,22 @@
 (in-package #:ftd-directory)
 
 (defun gid->name (gid)
-  (group-entry-name (cffi-unix::getgrgid gid)))
+  ;; see `uid->name'. Admittedly, I'm not sure what a gid is, or quite why
+  ;; returning NIL here works, but it does.
+  (mm::awhen (nix::getgrgid gid)
+    (getgrnam mm::it)))
 
 (defun uid->name (uid)
-  (password-entry-username (cffi-unix::getpwuid uid)))
+  ;; if a file has not yet been visited, it won't have an owner and attempting to 
+  ;; getpwnam of NIL throws.
+  (mm::awhen (nix::getpwuid uid)
+    (getpwnam mm::it)))
 
 (defconstant +unix-epoch+ (encode-universal-time 0 0 0 1 1 1970 0))
 
 (defconstant +6months+ (* 180 24 60 60)
   "six months in seconds")
 
-;; shut sbcl up
 (defparameter +month-names+ '("January"
 			      "February"
 			      "March"
@@ -48,42 +53,42 @@
 
 (defun mode->string (mode)
   (let* ((type
-	  (let ((fmt (logand stat-ifmt mode)))
+	  (let ((fmt (logand s-ifmt mode)))
 	    (cond
-	      ((= fmt stat-ifblk) #\b)
-	      ((= fmt stat-ifchr) #\c)
-	      ((= fmt stat-ififo) #\p)
-	      ((= fmt stat-ifreg) #\-)
-	      ((= fmt stat-ifdir) #\d)
-	      ((= fmt stat-iflnk) #\l)
+	      ((= fmt s-ifblk) #\b)
+	      ((= fmt s-ifchr) #\c)
+	      ((= fmt s-ififo) #\p)
+	      ((= fmt s-ifreg) #\-)
+	      ((= fmt s-ifdir) #\d)
+	      ((= fmt s-iflnk) #\l)
 	      (t #\?))))
-	 (owner-read (if (plusp (logand stat-irusr mode))
+	 (owner-read (if (plusp (logand s-irusr mode))
 			 #\r #\-))
-	 (owner-write (if (plusp (logand stat-iwusr mode))
+	 (owner-write (if (plusp (logand s-iwusr mode))
 			  #\w #\-))
-	 (owner-execute (if (plusp (logand stat-ixusr mode))
-			    (if (plusp (logand stat-isuid mode))
+	 (owner-execute (if (plusp (logand s-ixusr mode))
+			    (if (plusp (logand s-isuid mode))
 				#\s #\x)
-			    (if (plusp (logand stat-isuid mode))
+			    (if (plusp (logand s-isuid mode))
 				#\S #\-)))
-	 (group-read (if (plusp (logand stat-irgrp mode))
+	 (group-read (if (plusp (logand s-irgrp mode))
 			 #\r #\-))
-	 (group-write (if (plusp (logand stat-iwgrp mode))
+	 (group-write (if (plusp (logand s-iwgrp mode))
 			  #\w #\-))
-	 (group-execute (if (plusp (logand stat-ixgrp mode))
-			    (if (plusp (logand stat-isgid mode))
+	 (group-execute (if (plusp (logand s-ixgrp mode))
+			    (if (plusp (logand s-isgid mode))
 				#\s #\x)
-			    (if (plusp (logand stat-isgid mode))
+			    (if (plusp (logand s-isgid mode))
 				#\S #\-)))
-	 (other-read (if (plusp (logand stat-iroth mode))
+	 (other-read (if (plusp (logand s-iroth mode))
 			 #\r #\-))
-	 (other-write (if (plusp (logand stat-iwoth mode))
+	 (other-write (if (plusp (logand s-iwoth mode))
 			  #\w #\-))
 	 (other-execute (let ((dirp (char= type #\d))
 			      (execute/search-p
-			       (plusp (logand stat-ixoth mode)))
+			       (plusp (logand s-ixoth mode)))
 			      (restricted-deletion-p
-			       (plusp (logand stat-isvtx mode))))
+			       (plusp (logand s-isvtx mode))))
 			  (cond
 			    ((and dirp
 				  (not execute/search-p)
@@ -101,58 +106,63 @@
 	    'string)))
 
 (defun executablep (mode)
-  (logand (logior stat-ixusr stat-ixgrp stat-ixoth) mode))
+  (logand (logior s-ixusr s-ixgrp s-ixoth) mode))
 
 (defun directory-names (dirname)
-  (let (DIR names)
-    (unwind-protect
-	(progn
-	  (setf DIR (cffi-unix::opendir dirname)
-		names (loop for dirent = (ignore-errors (cffi-unix::readdir DIR))
-			    while dirent
-			    collect (directory-entry-name dirent))))
-      (progn
-	(when DIR (cffi-unix::closedir DIR))
-	names))))
+  (mapcar 'mm::filename (mm::ls dirname))
+  ;; (let (DIR names)
+  ;;   (unwind-protect
+  ;; 	 (progn
+  ;; 	   (setf DIR (nix::opendir dirname)
+  ;; 		 names (loop for dirent = (ignore-errors (nix::readdir DIR))
+  ;; 			     while dirent
+  ;; 			     collect (directory-entry-name dirent))))
+  ;;     (progn
+  ;; 	(when DIR (nix::closedir DIR))
+  ;; 	names)))
+  )
 
-(cffi-unix::defforeign ("readlink" %readlink) :int
-  "Put the contents of symbolic link PATH into BUF of size BUFSIZ"
-  (path :string)
-  (buf :pointer)
-  (bufsiz :int))
+;; (cffi-unix::defforeign ("readlink" %readlink) :int
+;;   "Put the contents of symbolic link PATH into BUF of size BUFSIZ"
+;;   (path :string)
+;;   (buf :pointer)
+;;   (bufsiz :int))
 
 (defconstant PATH-MAX 255)
 
 (defun readlink (path)
   (with-foreign-pointer (buf PATH-MAX)	; we don't need no stinkin' nulls
-    (let ((length (%readlink path buf PATH-MAX)))
-      (foreign-string-to-lisp buf length nil))))
+    ;; TODO 2015-10-13T01:46:15+00:00 Gabriel Laddel
+    ;; it is unclear if the length was intended to refer to the offset, count or
+    ;; max chars. as such, I guessed at COUNT
+    (let ((length (nix::%readlink path buf PATH-MAX)))
+      (foreign-string-to-lisp buf :count length))))
 
 (defun stat-la (path)
-  (let* ((stat (stat path nil))
-	 (fmt (logand stat-ifmt (stat-mode stat)))
+  (let* ((stat (nix::lstat path))
+	 (fmt (logand s-ifmt (stat-mode stat)))
 	 (type (cond
-		 ((= fmt stat-ifreg) :file)
-		 ((= fmt stat-ifdir) :directory)
-		 ((= fmt stat-iflnk) :link)
+		 ((= fmt s-ifreg) :file)
+		 ((= fmt s-ifdir) :directory)
+		 ((= fmt s-iflnk) :link)
 		 (t :other)))
 	 (link-name (when (eq type :link)
 		      (readlink path))))
-    (with-slots (device inode mode link-count uid gid
-			special-device-type
-			atime mtime ctime
-			size block-count block-size) stat
-       (values type
-	       device inode mode link-count uid gid
-	       special-device-type
-	       atime mtime ctime
-	       size block-count block-size
-	       link-name))))
+    (with-slots (dev ino mode nlink uid gid
+		 ;; special-device-type
+		 atime mtime ctime
+		 size blocks blksize) stat
+      (values type
+	      dev ino mode nlink uid gid
+	      nil ;; special-device-type
+	      atime mtime ctime
+	      size blocks blksize
+	      link-name))))
 
-(cffi-unix::defforeign "chmod" :int
-  "Set file permission bits of PATH to MODE"
-  (path :string)
-  (mode :mode))
+;; (cffi-unix::defforeign "chmod" :int
+;;   "Set file permission bits of PATH to MODE"
+;;   (path :string)
+;;   (mode :mode))
 
 (defun posix-date->time (date-string)
   "[[CC]YY]mmddhhmm[.ss] to universal-time
@@ -212,21 +222,21 @@ If YY specified, CC = 19 for YY >= 68"
 
 (defun test (dirname)
   (loop for name in (directory-names dirname)
-	for stat = (stat (concatenate 'string dirname name) nil)
+	for stat = (nix::lstat (concatenate 'string dirname name))
 	collecting (cons name stat) into entries
-	maximizing (stat-link-count stat) into max-link-count
+	maximizing (stat-nlink stat) into max-link-count
 	maximizing (stat-size stat) into max-size
 	finally (loop for (name . stat) in entries
 		      with link-count-width = (max 4 (integer-string-length max-link-count))
 		      with size-width = (integer-string-length max-size)
 		      with now = (get-universal-time)
 		      with link-name = nil
-		      when (= stat-iflnk (logand stat-ifmt (stat-mode stat)))
+		      when (= s-iflnk (logand s-ifmt (stat-mode stat)))
 			do (setq link-name (readlink (concatenate 'string dirname name)))
 		      else
 			do (setq link-name nil)
 		      do (print-entry stat name :link-count-width link-count-width
-			       :size-width size-width :now now)
+						:size-width size-width :now now)
 		      when link-name
 			do (format t " -> ~A" link-name))))
 
